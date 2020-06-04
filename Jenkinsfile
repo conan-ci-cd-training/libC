@@ -99,7 +99,6 @@ pipeline {
                                     sh "conan --version"
                                     sh "conan config home"                               
                                     sh "conan remote list"                               
-                                    sh "conan search '*' -r conan-develop"
                                 }                      
                             }
                         }
