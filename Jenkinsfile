@@ -31,9 +31,11 @@ def get_stages(profile, docker_image, lockfile_contents) {
                                 }
                             }
 
-                            stage("Get package info") {       
-                                name = sh (script: "conan inspect . --raw name", returnStdout: true).trim()
-                                version = sh (script: "conan inspect . --raw version", returnStdout: true).trim()                                
+                            if (branch_name =~ ".*PR.*" || env.BRANCH_NAME == "develop") {            
+                                stage("Get package info") {       
+                                    name = sh (script: "conan inspect . --raw name", returnStdout: true).trim()
+                                    version = sh (script: "conan inspect . --raw version", returnStdout: true).trim()                                
+                                }
                             }
 
                             if (lockfile_contents==null) {
@@ -45,7 +47,7 @@ def get_stages(profile, docker_image, lockfile_contents) {
                                 }
                             }                         
                             else {
-                                stage("Create package using lockfile") {       
+                                stage("Create package using product's lockfile") {       
                                     def lockfile_name = "${name}-${profile}.lock"
                                     writeFile file: lockfile_name, text: "${lockfile_contents}"
                                     sh "cp ${lockfile_name} conan.lock"
@@ -54,29 +56,27 @@ def get_stages(profile, docker_image, lockfile_contents) {
                                 }
                             }
 
-                            stage("Get created package revision") {       
-                                search_out = sh (script: "conan search ${name}/${version}@${user_channel} --revisions --raw", returnStdout: true).trim()    
-                                reference_revision = search_out.split(" ")[0]
-                                echo "${reference_revision}"
-                            }
-
-                            if (branch_name =~ ".*PR.*" || env.BRANCH_NAME == "develop") {                                      
+                            if (branch_name =~ ".*PR.*" || env.BRANCH_NAME == "develop") {            
+                                stage("Get created package revision") {       
+                                    search_out = sh (script: "conan search ${name}/${version}@${user_channel} --revisions --raw", returnStdout: true).trim()    
+                                    reference_revision = search_out.split(" ")[0]
+                                    echo "${reference_revision}"
+                                }
                                 stage("Upload package: ${name}/${version}#${reference_revision} to conan-tmp") {
                                     sh "conan upload '${name}/${version}' --all -r ${conan_tmp_repo} --confirm"
                                 }
+                                stage("Upload lockfile") {
+                                    def lockfile_path = "/${artifactory_metadata_repo}/${env.JOB_NAME}/${env.BUILD_NUMBER}/${name}/${version}@${user_channel}/${profile}/${lockfile}"
+                                    def base_url = "http://${artifactory_url}:8081/artifactory"
+                                    def properties = "?properties=build.name=${env.JOB_NAME}%7Cbuild.number=${env.BUILD_NUMBER}%7Cprofile=${profile}%7Cname=${name}%7Cversion=${version}"
+                                    withCredentials([usernamePassword(credentialsId: 'artifactory-credentials', usernameVariable: 'ARTIFACTORY_USER', passwordVariable: 'ARTIFACTORY_PASSWORD')]) {
+                                        // upload the lockfile
+                                        sh "curl --user \"\${ARTIFACTORY_USER}\":\"\${ARTIFACTORY_PASSWORD}\" -X PUT ${base_url}${lockfile_path} -T ${lockfile}"
+                                        // set properties in Artifactory for the file
+                                        sh "curl --user \"\${ARTIFACTORY_USER}\":\"\${ARTIFACTORY_PASSWORD}\" -X PUT ${base_url}/api/storage${lockfile_path}${properties}"
+                                    }                                
+                                }
                             } 
-
-                            stage("Upload lockfile") {
-                                def lockfile_path = "/${artifactory_metadata_repo}/${env.JOB_NAME}/${env.BUILD_NUMBER}/${name}/${version}@${user_channel}/${profile}/${lockfile}"
-                                def base_url = "http://${artifactory_url}:8081/artifactory"
-                                def properties = "?properties=build.name=${env.JOB_NAME}%7Cbuild.number=${env.BUILD_NUMBER}%7Cprofile=${profile}%7Cname=${name}%7Cversion=${version}"
-                                withCredentials([usernamePassword(credentialsId: 'artifactory-credentials', usernameVariable: 'ARTIFACTORY_USER', passwordVariable: 'ARTIFACTORY_PASSWORD')]) {
-                                    // upload the lockfile
-                                    sh "curl --user \"\${ARTIFACTORY_USER}\":\"\${ARTIFACTORY_PASSWORD}\" -X PUT ${base_url}${lockfile_path} -T ${lockfile}"
-                                    // set properties in Artifactory for the file
-                                    sh "curl --user \"\${ARTIFACTORY_USER}\":\"\${ARTIFACTORY_PASSWORD}\" -X PUT ${base_url}/api/storage${lockfile_path}${properties}"
-                                }                                
-                            }
                         }
                         finally {
                             deleteDir()
