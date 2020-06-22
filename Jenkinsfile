@@ -48,10 +48,9 @@ def get_stages(profile, docker_image, lockfile_contents) {
                                 stage("Create package using lockfile") {       
                                     def lockfile_name = "${name}-${profile}.lock"
                                     writeFile file: lockfile_name, text: "${lockfile_contents}"
-                                    sh "cat ${lockfile_name}"
-                                    sh "conan create . ${user_channel} --lockfile ${lockfile_name} --ignore-dirty"
-                                    sh "cat ${lockfile_name}"
-                                    sh "cp ${lockfile_name} ${lockfile}"
+                                    sh "cp ${lockfile_name} conan.lock"
+                                    sh "conan install ${name}/{version}@{user_channel} --build ${name}/{version}@{user_channel} --lockfile conan.lock"
+                                    sh "cp conan.lock ${lockfile}"
                                 }
                             }
 
@@ -65,7 +64,6 @@ def get_stages(profile, docker_image, lockfile_contents) {
                                 stage("Upload package: ${name}/${version}#${reference_revision} to conan-tmp") {
                                     sh "conan upload '${name}/${version}' --all -r ${conan_tmp_repo} --confirm"
                                 }
-
                             } 
 
                             stage("Upload lockfile") {
