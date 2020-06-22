@@ -49,7 +49,7 @@ def get_stages(profile, docker_image, lockfile_contents) {
                                     def lockfile_name = "${name}-${profile}.lock"
                                     writeFile file: lockfile_name, text: "${lockfile_contents}"
                                     sh "cp ${lockfile_name} conan.lock"
-                                    sh "conan install ${name}/{version}@{user_channel} --build ${name}/{version}@{user_channel} --lockfile conan.lock"
+                                    sh "conan install ${name}/${version}@${user_channel} --build ${name}/${version}@${user_channel} --lockfile conan.lock"
                                     sh "cp conan.lock ${lockfile}"
                                 }
                             }
